@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Voters Choosing their Representatives or Vice-versa?</title>
+        <script src="https://d3js.org/d3.v4.min.js"></script>
+        <script src="https://d3js.org/topojson.v2.min.js"></script>
+        <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+        <style>
+            path {
+                fill: none;
+            }
+            path {
+                stroke: white;
+                stroke-linejoin: round;
+                stroke-linecap: round;
+            }
+            path:hover {
+                cursor: pointer;
+            }
+            .districts {
+                stroke-width: 0.3px;
+            }
+            .states {
+                stroke-width: 0.6px;
+                fill: none;
+            }
+            .tooltip {
+                background-color: white;
+                opacity: 0.9;
+                width: 20em;
+                border: 1px solid lightgray;
+                border-radius: 2px;
+                padding: 20px;
+                font-family: sans-serif;
+                z-index: 1;
+            }
+            .tooltip h2 {
+                border-bottom: 1px solid lightgray;
+                margin-bottom: 30px;
+                margin-top: 5px;
+                text-align: left;
+            }
+            .tooltip table {
+                width: 100%;
+            }
+            .icon {
+                display: inline-block;
+                width: 1.4em;
+                height: 1.4em;
+                color: white;
+                font-size: 0.714285714em;
+                font-weight: 700;
+                text-align: center;
+                line-height: 1.4em;
+                position: relative;
+                top: -0.2em;
+                border-radius: 0.7em;
+                margin-right: 1em;
+            }
+            .tooltip-vote-cell {
+                color: gray;
+            }
+            #binary-win-map-container {
+                width: 900px;
+                height: 600px;
+            }
+            button:hover {
+                cursor: pointer;
+            }
+            .tooltip-xout {
+                position: absolute;
+                top: 0px;
+                right: 0px;
+                border: none;
+                background-color: white;
+                opacity: 0.9;
+            }
+            h1,h2,h3,h4,h5,h6 {
+                text-align: center;
+            }
+            header {
+                border: 5px solid gray;
+                border-radius: 5px;
+            }
+            #main-subheading {
+                color: gray;
+            }
+            * {
+                font-family: sans-serif;
+            }
+            #container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 15px;
+                width: 100%;
+            }
+            #container div {
+                border-top: 1px solid lightgray;
+                border-bottom: 1px solid lightgray;
+            }
+            body p, body ul, body ol, body div, body header {
+                width: 900px;
+            }
+            body {
+                background-color: #f8fff8;
+            }
+            .natStateToggle {
+                text-align: center;
+                background-color: lightgray;
+                border: 1px solid white;
+                border: 1px solid white;
+                border-radius: 1px;
+                opacity: 0.5;
+            }
+            .natStateToggle:hover {
+                cursor: pointer;
+                background-color: darkgray;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="container">
+            <header>
+                <h1 id="main-heading">Gerrymandering and the 2016 Congresional Election</h1>
+                <h3 id="main-subheading">Are Voters Choosing their Representatives or Vice-versa?</h3>
+            </header>
+
+            <p>
+                Here's a map of the 2016 congressional election results. It shows which party each of the 435 districts voted for, but it does not really give insight into the possibility of gerrymandering, or setting the district boundaries with the intent of aiding a particular political interest. For that, we will have to look deeper. That is the aim of this project.
+            </p>
+            <div id="binary-win-map-container">
+            </div>
+            <p>
+                First, some background on gerrymandering. From <a href="https://en.wikipedia.org/wiki/Gerrymandering">Wikipedia</a>, these are some of the principal tactics:
+            </p>
+            <ul>
+                <li>"Cracking" involves spreading voters of a particular type among many districts in order to deny them a sufficiently large voting bloc in any particular district. An example would be to split the voters in an urban area among several districts wherein the majority of voters are suburban, on the presumption that the two groups would vote differently, and the suburban voters would be far more likely to get their way in the elections.</li>
+                <li>"Packing" is to concentrate as many voters of one type into a single electoral district to reduce their influence in other districts. In some cases, this may be done to obtain representation for a community of common interest (such as to create a majority-minority district), rather than to dilute that interest over several districts to a point of ineffectiveness (and, when minority groups are involved, to avoid likely lawsuits charging racial discrimination). When the party controlling the districting process has a statewide majority, packing is usually not necessary to attain partisan advantage; the minority party can generally be "cracked" everywhere. Packing is therefore more likely to be used for partisan advantage when the party controlling the districting process has a statewide minority, because by forfeiting a few districts packed with the opposition, cracking can be used in forming the remaining districts.</li>
+                <li>"Hijacking" redraws two districts in such a way as to force two incumbents of the same political party to run against each other in one district, ensuring that one of them will be eliminated, while usually leaving the other district to be won by someone from a different political party.</li>
+                <li>"Kidnapping" aims to move areas where a certain elected official has significant support to another district, making it more difficult to win future elections with a new electorate. This is often employed against politicians who represent multiple urban areas, in which larger cities will be removed from the district in order to make the district more rural.</li>
+            </ul>
+            <h3>
+                So what do we look for when investigating gerrymandering?
+            </h3>
+            <p>
+                This report will merely scratch the surface, but will still attempt to effectively visualize the effects of districting lines on the 2016 election.
+            </p>
+            <p>
+                The first thing we'll do is examine the margins by which each district was won. Rather than just the binary results map, showing the margins of victory can actually elucidate something meaningful about the concentration of party voters in each district. How so? One would expect that if partisan gerrymandering is present, then the offending party employs "packing" to give themselves many small-margin victories and concentrate their opponents in a few huge-margin victory districts. Thus we would expect small margins of victory in districts won by the controlling party and large margins in districts won by the opposing party. On the other hand, if the controlling party holds a majority, they might "crack" their opposition, and we'd see a disproportionate number of districts going for the majority as a result. With that in mind, here's this map:
+            </p>
+            <div id="margin-win-map-container">
+            </div>
+            <p>
+                Now this map is quite a bit more informative. We can see a swath of deep red through the Appalachians and down to the Texas and the South. Likewise we see slivers of deep blue along the coasts and around major cities. As for districting that might be suspicious, it's a little hard to tell.Some things grab the eye a bit, though. Namely, North Carolina has some very skinny deep blue districts surrounded by moderate red ones. Wisconsin, also facing a major court case on gerrymandering, demonstrates a large Democratic majority in the 3rd district, but seems to have slightly smaller margins in Republican districts. On the other side of the aisle, if we're looking for packing, Oregon could be a candidate. Known as a blue state, eastern Oregon is actually deep red, and the more populous coast is moderate blue.
+            </p>
+            <p>
+                To take a deeper look at these margin distributions, we'll use a histogram. The following composite plot shows histograms for the margin of victory distributions for districts within each state. Along the x-axis is margin of victory (far left = big Democratic win, far right = bit Republican win). Along the y-axis is number of districts falling into each margin range. Potentially these plots would be more informative if they had more bins, because for example the bin representing the smallest margin category (0-25%) is a huge range. A 25% margin is a lot bigger than a 3% margin. However, there are not that many districts in a state so increasing the number of bins would mean most bins would have 0 or 1 districts in them, which neglects large-scale trends and simply isn't very interesting. So, here's the plot:
+            </p>
+            <div id="composite-hist-container">
+            </div>
+            <p>
+                There are some interesting insights from these histograms. Perhaps the most striking feature of some of them is a dropoff at the 0% mark, i.e. far more small-margin wis for one party. This is perhaps most pronounced in Texas, Pennsylvania, and North Carolina. These districts can perhaps be thought of as pickup-opportunities for the opposing party. In all of these states, there are many more small-margin Republican wins than Democratic wins. In other words, within what one might imagine are "swing districts" in a gerrymandering-free world, an unlikely proportion are overwhelmingly going Republican. A bit suspect? Probably. We also do have to take into account that people are certainly not settled in politically randomly distributed fasion; Democrats probably tend to cluster more into cities, and Republicans may be naturally more spread out in more politically balanced rural areas. So in that regard, it's hard to know entirely. Nonetheless, let's now examine the distribution of margins for the nation as a whole. This will give more datapoints, and allow smaller bins to show more meaningful results and general trends. Here it is:
+            </p>
+            <div id="national-hist-container">
+            </div>
+            <p>
+                The main thing we can see from this histogram is that margins of victory are more spread out on the Democratic size. About as many districts are won by 60-70% Democratic margin as by 0-10%. On the Republican side, however, there are the most districts in the 20-30% margin category and then it drops off rather steeply to the right. This means that in general, Democrats win more districts by larger margins than Republicans do.
+            </p>
+            <p>
+                So remember how people tend to distribute into non-random politically clustered ways that may skew the margin distributions in districts? Well that's a topic for another project, and makes investigating gerrymandering a bit more complicated. But perhaps we can assume that districts should ideally be somewhat random in their distributions in terms of size, shape, and location. Thus, in a non-gerrymandered world, we would expect the districts to represent the distribution of the people. So one way we can get around this is to attempt to quantify how weird the district shapes are, and thus how much more likely they may be to have been engineered to fit their residents, i.e. gerrymandered. We can quantify this with so-called compactness. There are several potential ways to calculate compactness, but for this project, the formule used was:
+            </p>
+            <ol>
+                <li>Determine the bounding rectangle of the district as it's projected onto the map. Call its width W and height H.</li>
+                <li>Set radius R to the square root of W<sup>2</sup> + H<sup>2</sup>, divided by the square root of 2. Essentially this says, find the length of the hypotenuse of the triangle with legs W and H, and then find the length of the legs if it were a right equilateral triangle with that hypotenuse</li>
+                <li>Find the area of the circle with radius R</li>
+                <li>Find the actual area of the district (this is given in the dataset).</li>
+                <li>Finally, your compactness is A<sub>district</sub> / A<sub>circle</sub>, multiplied by a scaling constant since, in this case, unfortunately the two areas are not in the same units (pixels and sq. miles). Thus we just scale to make the numbers in a better range, i.e. 0 to 1. Intuitively, a circle is the most compact shape, so it should have maximum compactness. A squiggley, jagged shape will have compactness close to 0.</li>
+            </ol>
+            <p>
+                So here's compactness plotted on the map:
+            </p>
+            <div id="compactness-map-container">
+            </div>
+            <p>
+                Notice that the results of this mapping intuitevely make rough sense. For example, consider how Wyoming, just a big squarish rectangle, falls into the most compact bin. Now look at some of the aforementioned suspicious skinny districts in North Carolina; they're all the way at the other end of the spectrum. This is not a perfect measure, and there's definitely better ways to measure compactness, for instance by considering the perimeter. However, we can still see that this plotting makes sense, and we can see that areas colored very light gray, such as those areas of NC, may be suspect.
+            </p>
+            <p>
+                Here's a histogram of the compactness scores of all the nation's districts, to help you get a sense of where each falls on the above map. Remember that as the number is multiplied by an arbitrary scaling factor, the compactness scores are only significant in relation to each other.
+            </p>
+            <div id="comp-hist-container">
+            </div>
+            <p>
+                We can see from this histogram that compactness follows roughly a normal distribution, centered somewhere around 0.1. There are a few outliers with higher compactness. Can you find them on the map?
+            </p>
+            <p>
+                Lastly, we will look at how compactness and margin scores may correlate. Here's compactness plotted against margin of victory for both parties (-100 = 100% Democratic margin, 100 = 100% Republican margin).
+            </p>
+            <div id="comp-vs-margin-container">
+            </div>
+            <p>
+                Doesn't seem to be much correlation here, or at least it's really hard to tell.
+            </p>
+        </div>
+        
+        <script>
+            // Default setup parameters for an SVG
+            var defaultSvgDims = {width: 900,
+                                   height: 600,
+                                   margin: {
+                                       top: 40,
+                                       bottom: 80,
+                                       left: 80,
+                                       right: 40
+                                   }};
+            
+            // Files storing data for: TopoJSON for districts, TopoJSON for states, 
+            // and JSON (in a .txt file) of cleaned election results data, respectively.
+            var districts = "cb_2015_us_cd114_20m.json";
+            var states = "cb_2016_us_state_20m.json";
+            var results = "congressional_results_2016.txt";
+            
+            // JS object with key: value = Statename: StateAbbr, i.e. Alabama: AL
+            var stateAbbrs = {"Alabama": "AL",
+                              "Alaska": "AK",
+                              "Arizona": "AZ",
+                              "Arkansas": "AR",
+                              "California": "CA",
+                              "Colorado": "CO",
+                              "Connecticut": "CT",
+                              "Delaware": "DE",
+                              "Florida": "FL",
+                              "Georgia": "GA",
+                              "Hawaii": "HI",
+                              "Idaho": "ID",
+                              "Illinois": "IL",
+                              "Indiana": "IN",
+                              "Iowa": "IA",
+                              "Kansas": "KS",
+                              "Kentucky": "KY",
+                              "Louisiana": "LA",
+                              "Maine": "ME",
+                              "Maryland": "MD",
+                              "Massachusetts": "MA",
+                              "Michigan": "MI",
+                              "Minnesota": "MN",
+                              "Mississippi": "MS",
+                              "Missouri": "MO",
+                              "Montana": "MT",
+                              "Nebraska": "NE",
+                              "Nevada": "NV",
+                              "New Hampshire": "NH",
+                              "New Jersey": "NJ",
+                              "New Mexico": "NM",
+                              "New York": "NY",
+                              "North Carolina": "NC",
+                              "North Dakota": "ND",
+                              "Ohio": "OH",
+                              "Oklahoma": "OK",
+                              "Oregon": "OR",
+                              "Pennsylvania": "PA",
+                              "Rhode Island": "RI",
+                              "South Carolina": "SC",
+                              "South Dakota": "SD",
+                              "Tennessee": "TN",
+                              "Texas": "TX",
+                              "Utah": "UT",
+                              "Vermont": "VT",
+                              "Virginia": "VA",
+                              "Washington": "WA",
+                              "West Virginia": "WV",
+                              "Wisconsin": "WS",
+                              "Wyoming": "WY"
+                             }
+            
+            // Maps a datafield STATEFP to the statename, and vice-versa.
+            var statefpToName = {};
+            var nameToStatefp = {};
+            
+            var statefpList = [1,2,4,5,6,8,9,10,
+                               12,13,15,16,17,18,19,20,
+                               21,22,23,24,25,26,27,28,29,30,
+                               31,32,33,34,35,36,37,38,39,40,
+                               41,42,44,45,46,47,48,49,50,51,53,54,55,56];
+            
+            var stateNamesList = ["Alabama", "Alaska", "Arizona", "Arkansas", "California", 
+                         "Colorado", "Connecticut", "Delaware", "Florida", "Georgia", 
+                         "Hawaii", "Idaho", "Illinois", "Indiana", "Iowa", "Kansas", 
+                         "Kentucky", "Louisiana", "Maine", "Maryland", "Massachusetts", 
+                         "Michigan", "Minnesota", "Mississippi", "Missouri", "Montana", 
+                         "Nebraska", "Nevada", "New Hampshire", "New Jersey", "New Mexico", 
+                         "New York", "North Carolina", "North Dakota", "Ohio", "Oklahoma", 
+                         "Oregon", "Pennsylvania", "Rhode Island", "South Carolina", 
+                         "South Dakota", "Tennessee", "Texas", "Utah", "Vermont", 
+                         "Virginia", "Washington", "West Virginia", "Wisconsin", "Wyoming"];
+            
+            // STATEFP to index of the state, i.e. "Arizona" = index 2.
+            var fpToIdx = {};
+            for (var i = 0; i < 50; i++) {
+                fpToIdx[statefpList[i]] = i;
+                nameToStatefp[stateNamesList[i]] = statefpList[i];
+            }
+            
+            // Colors for drawing graphics with binary coloring for Republican and Democratic wins.
+            var partyColors = {
+                "D": "#007dd6",
+                "R": "#b81800",
+                "I": "#e7a520"
+            }
+            
+            for (var i = 0; i < 50; i++) {
+                statefpToName[statefpList[i]] = stateNamesList[i];
+                nameToStatefp[stateNamesList[i]] = statefpList[i];
+            }
+            
+            // Gets the state and district given a GEOID. Didn't end up using this.
+            function stateAndDistrict(geoid) {
+                var statefp = +geoid.substring(0,2);
+                var cd114fp = +geoid.substring(2);
+                
+                var state = statefpToName[statefp];
+                var district = function(cd114fp) {
+                    var ext = "";
+                    if (cd114fp%10 === 2) {
+                        ext = "nd";
+                    } else if (cd114fp%10 == 3) {
+                        ext = "rd";
+                    } else {
+                        ext = "st";
+                    }
+                    return cd114fp + ext + " District Election";
+                }
+                return {state: state, district: district};
+            }
+            
+            // Reverse of the above.
+            function geoid(stateAndDistrict) {
+                var state = nameToStatefp[stateAndDistrict.state] + ""; // a string
+                var district = parseInt(stateAndDistrict.district) + ""; // a string
+                if (state.length < 2) {
+                    state = "0" + state;
+                }
+                if (district.length < 2) {
+                    district = "0" + district;
+                }
+                var geoid = state+district;
+                return geoid;
+            }
+            
+            // Load all the JSON files     
+            d3.json(districts, function(error1, congress) {   
+                //console.log(congress);
+                d3.json(states, function(error2, us) {
+                    //console.log(us);
+                    d3.json(results, function(error3, res) {
+                        if (error3) console.log(error3);
+                        
+                        // Holds the path data for districts
+                        var distFts = topojson.feature(congress, congress.objects.cb_2015_us_cd114_20m).features;
+                        //console.log(fts);
+
+//                          All of the following code was used to find fake news 
+//                            datapts messing up the svg path data.
+
+//                            var ftsmap = {};
+//                            for (var i = 0; i < 60; i++) {
+//                                ftsmap[i] = 0;
+//                            }
+//                            
+//                            var fpl = [1,2,4,5,6,8,9,10,
+//                                      12,13,15,16,17,18,19,20,
+//                                      21,22,23,24,25,26,27,28,29,30,
+//                                      31,32,33,34,35,36,37,38,39,40,
+//                                      41,42,44,45,46,47,48,49,50,51,53,54,55,56];
+//                            for (var i = 0; i < fts.length; i++) {
+//                                ftsmap[+fts[i].properties.STATEFP] += 1;
+//                                var sfp = parseInt(fts[i].properties.STATEFP);
+//                                var disp = true;
+//                                for (var j = 0; j < fpl.length; j++) {
+//                                    if (sfp === fpl[j]) {
+//                                        disp = false;
+//                                        break;
+//                                    }
+//                                }
+//                                if (disp) console.log(sfp + "IDX" + i);
+//                                
+//                            }
+//                            console.log(ftsmap);
+//                            var total = 0;
+//                            for (var i = 0; i <= 56; i++) {
+//                                total += ftsmap[i];
+//                            }
+//                            console.log("TOTAL" + total);
+
+                        // Clean up SVG path data for districts
+                        function cleanFts(df) {
+                            // Splice out DC and PR, then reorder alphabetically and by district order.
+                            df.splice(342,1);
+                            df.splice(44,1);
+
+                            var df1 = [];
+                            for (var i = 0; i < 50; i++) {
+                                df1.push([]);
+                            }
+
+                            for (var i = 0; i < df.length; i++) {
+                                var state = +df[i].properties.STATEFP;
+                                var district = +df[i].properties.CD114FP;
+                                df1[fpToIdx[state]][Math.max(district-1,0)] = df[i];
+                            }
+                    
+                            var df2 = [];
+                            for (var i = 0; i < df1.length; i++) {
+                                for (var j = 0; j < df1[i].length; j++) {
+                                    df2.push(df1[i][j]);
+                                }
+                            }
+                            
+                            return df2;
+                        }
+                        distFts = cleanFts(distFts);
+                        
+                        // Holds the path data for states
+                        var stateFts = topojson.feature(us,us.objects.cb_2016_us_state_20m).features;
+                        
+                        // Clean up SVG path data for states
+                        function cleanStateFts(sf) {
+                            // Splice out DC and Puerto Rico, then reorder alphabetically.
+                            for (var e of [46,9]) {
+                                sf.splice(e,1);
+                            }
+                            var sf1 = [];
+                            for (var i = 0; i < 50; i++) {
+                                var state = +sf[i].properties.STATEFP;
+                                sf1[fpToIdx[state]] = sf[i];
+                            }
+                            return sf1;
+                        }
+                        stateFts = cleanStateFts(stateFts);
+                        
+                        //console.log(stateFts.length);
+                        
+                        var defaultPath = d3.geoPath()
+                                            .projection(d3.geoAlbersUsa()
+                                                        .scale(1200)
+                                                        .translate([defaultSvgDims.width/2,defaultSvgDims.height/2]));
+                       
+                        // Gets the compactness of a district (GeoJSON object)
+                        function getCompactness(d) {
+                            var bounds = defaultPath.bounds(d);
+                            var dx = bounds[1][0]-bounds[0][0];
+                            var dy = bounds[1][1]-bounds[0][1];
+                            var radius = Math.max(dx,dy)/2;
+                            var circleArea = Math.PI * radius*radius;
+                            var actualArea = d.properties.ALAND + d.properties.AWATER;
+                            
+                            var compactness = actualArea/circleArea/(1000000*139.28782603300982);
+                            return compactness;
+                        }
+                        
+                        //var minComp = getCompactness(distFts[0]);
+                        //console.log("MINCOMP" + minComp);
+                        //var maxComp = getCompactness(distFts[0]);
+                        
+                        
+                        // Fill the list of district compactnesses so you don't have to repeat calculate it.
+                        var compactnessList = [];
+                        for (var i = 0; i < distFts.length; i++) {
+                            var comp = getCompactness(distFts[i]);
+                            compactnessList.push(comp);
+                        }
+//                        console.log("MIN " + minComp);
+//                        console.log("MAX " + maxComp);
+//                        compactnessRanks = [];
+//                        
+//                        function fillCompactnessRanks() {
+//                            var cls = [];
+//                            for (var e of compacnessList) {
+//                                cls.push(e);
+//                            }
+//                            for (var rnk = 0; rnk < cls.length; rnk++) {
+//                                var currMinVal = cls[0];
+//                                var currMinInd
+//                                for (var j = 0; j < cls.length; j++) {
+//                                    if (cls[j] < currMinVal) {
+//                                        currMinVal = cls[j];
+//                                        currMinInd = j;
+//                                    }
+//                                }
+//                                cls.splice(currMinInd,1);
+//                                compactnessRanks[currMinInd+rnk] = rnk;
+//                            }
+//                        }
+//                        
+//                        fillCompactnessRanks();
+//                        console.log(compactnessRanks);
+                        
+                        // Colors for compactness map.
+                        var compColorScale = d3.scaleThreshold()
+                                            .domain([0,0.025,0.05,0.075,0.1,0.125,0.15,0.175,0.2])
+                                            .range(d3.schemeGreys[9]);
+                        
+                        var compactnessColors = function(d) {
+                            var comp = getCompactness(d);
+                            return compColorScale(comp);
+                        }
+                        
+                        // Generates a USA district map and colors it according to the data and colorFunc.
+                        //
+                        // Args ---
+                        // parentElt: div to append the SVG to (DOM element)
+                        // data: array of data points, i.e. res["cd114"].
+                        // colorFunc: function mapping the datapoint to the fillcolor.
+                        // tooltipFunc: function determing how to display a tooltip onclick.
+                        // state: Initial-caps, string fullname of state, or "National". 
+                        // keys: an array of objects of the format {colors: sdlfksjdlkfj, title: sldkfjsldkjf} to make keys.
+                        // svgDims: dimensions of SVG to create.
+                        // 
+                        // Returns: nothing
+                        function generateMap(parentElt,data,colorFunc,tooltipFunc,state="National",keys=[],svgDims=defaultSvgDims) {
+                            var svg = parentElt.append("svg")
+                                .attr("width", svgDims.width)
+                                .attr("height", svgDims.height)
+                                .attr("class",function() {return (state==="National") ? "National" : "State";})
+                                .style("margin", "0 auto")
+                                .style("display", "block")
+                                .style("overflow", "visible");
+                            
+                            var scale = 4/3*svgDims.width;
+                            var translate = [svgDims.width/2,svgDims.height/2];
+                            var path = d3.geoPath()
+                                        .projection(d3.geoAlbersUsa()
+                                                    .scale(scale)
+                                                    .translate(translate));
+                            
+                            var dists = svg.append("g")
+                                .selectAll("path");
+                            
+                            var pathData = distFts;
+                            if (state !== "National") {
+                                pathData = [];
+                                var fp = nameToStatefp[state];
+                                var stateIdx = fpToIdx[fp];
+                                var startIdx = 0;
+                                // Select the data that only corresponds to the state chosen
+                                for (var i = 0; i < distFts.length; i++) {
+                                    if (+distFts[i]["properties"]["STATEFP"] == fp) {
+                                        startIdx = i;
+                                        break;
+                                    }
+                                }
+                                for (var i = startIdx; i < distFts.length; i++) {
+                                    if (+distFts[i]["properties"]["STATEFP"] != fp) {
+                                        break;
+                                    } else {
+                                        pathData.push(distFts[i]);
+                                    }
+                                }
+                                if (data.length === distFts.length) {
+                                    // If we're dealing with national data, trim it as well.
+                                    data = data.slice(startIdx,startIdx+pathData.length);
+                                }
+                            }
+                        
+                            var newPath;
+                            
+                            // Bind state data
+                            svg.append("g")
+                                .selectAll("path")
+                                .attr("class", "states")
+                                .data(function() {
+                                    console.log(stateFts);
+                                    if (state==="National") {
+                                        newPath = path;
+                                        return stateFts;
+                                    }
+                                    else {
+                                        // Scale and translate by the appropriate amount for state view
+                                        console.log(stateFts[stateIdx]);
+                                        
+                                        var bounds = path.bounds(stateFts[stateIdx]),
+                                              dx = bounds[1][0] - bounds[0][0],
+                                              dy = bounds[1][1] - bounds[0][1],
+                                              x = (bounds[0][0] + bounds[1][0]) / 2,
+                                              y = (bounds[0][1] + bounds[1][1]) / 2;
+                                        blowupFactor = Math.max(1, Math.min(8, 0.8 / Math.max(dx / svgDims.width, dy / svgDims.height))),
+                                        translate = [svgDims.width/2-(x-svgDims.width / 2)*blowupFactor,
+                                                     svgDims.height/2-(y-svgDims.height / 2)*blowupFactor];
+
+                                        
+                                        var proj = d3.geoAlbersUsa()
+                                                        .translate(translate)
+                                                        .scale(scale*blowupFactor);
+                                        
+                                        newPath = d3.geoPath()
+                                                    .projection(proj);
+                                        
+                                        return [stateFts[stateIdx]];
+                                    }
+                                })
+                                .enter().append("path")
+                                .attr("d", newPath)
+                                .attr("class", "states");
+                            
+                            // Bind district data
+                            dists.data(pathData)
+                                .enter().append("path")
+                                .attr("d", newPath)
+                                .attr("class", "districts")
+                                .on("mouseover", function() {
+                                    d3.select(this).transition()
+                                        .duration(500)
+                                        .style("opacity", "0.8");
+                                })
+                                .on("mouseout", function() {
+                                    d3.select(this).transition()
+                                        .duration(500)
+                                        .style("opacity", "1.0");
+                                });
+                            
+                            var tooltip = parentElt.append("div")
+                                .attr("class","tooltip")
+                                .style("display","none");
+                            
+                            // Attach data for coloring, and enable tooltip
+                            svg.selectAll("path.districts").data(data)
+                                .style("fill", function(d) {return colorFunc(d);})
+                                .on("click", function(d,i) {
+                                    var loc = d3.mouse(this);
+                                    tooltip.html("");
+                                    tooltip = tooltipFunc(tooltip,d,loc,svgDims,i)
+                                    tooltip.style("display","block");
+                                });
+                            
+                            for (var i = 0; i < keys.length; i++) {
+                                makeKey(svg, keys[i].colors, keys[i].title, i);
+                            }
+                        }
+                        
+                        // Makes a map with the option to toggle between national and state view
+                        //
+                        // Args ---
+                        // parentElt: div to append the SVG to (DOM element)
+                        // data: array of data points, i.e. res["cd114"]
+                        // colorFunc: function mapping the datapoint to the fillcolor.
+                        // tooltipFunc: function determing how to display a tooltip onclick.
+                        // keys: an array of objects of the format {colors: sdlfksjdlkfj, title: sldkfjsldkjf} to make keys.
+                        // svgDims: dimensions of SVG to create.
+                        // 
+                        // Returns: nothing
+                        function makeNatStateMap(parentElt,data,colorFunc,tooltipFunc,keys=[],svgDims=defaultSvgDims) {
+                            parentElt.style("width",svgDims.width+"px")
+                                .style("height",svgDims.height+"px")
+                                .style("border","none");
+                            
+                            // Add a child div to parentElt, to contain national map
+                            var natContainer = parentElt.append("div")
+                                .style("position","relative")
+                                .style("left","0px")
+                                .style("top","0px")
+                                .style("width",svgDims.width+"px")
+                                .style("height",svgDims.height+"px")
+                                .style("display","block");
+                            
+                            generateMap(natContainer,data,colorFunc,tooltipFunc,"National",keys,svgDims);
+                            
+                            // Add a child div to parentELt, to contain state map
+                            var stateContainer = parentElt.append("div")
+                                .style("position","relative")
+                                .style("left","0px")
+                                .style("top","0px")
+                                .style("width",svgDims.width+"px")
+                                .style("height",svgDims.height+"px")
+                                .style("display","none");
+                            
+                            // Add tabs for toggling between views
+                            var toggleTab = parentElt.append("table")
+                                .style("position","relative")
+                                .style("left","0px")
+                                .style("top","-20px")
+                                .style("width",svgDims.width+"px")
+                                .append("tr");
+                            
+                            toggleTab.append("td")
+                                .attr("class","natStateToggle")
+                                .style("width",svgDims.width/2+"px")
+                                .html("National View")
+                                .on("click", function() {
+                                    stateContainer.style("display","none");
+                                    natContainer.style("display","block");
+                                });
+                            
+                            toggleTab.append("td")
+                                .attr("class","natStateToggle")
+                                .style("width",svgDims.width/2+"px")
+                                .html("State View")
+                                .on("click", function() {
+                                    natContainer.style("display","none");
+                                    stateContainer.style("display","block");
+                                });;
+                            
+                            // Add search feature to state view
+                            var searchBar = stateContainer.append("div")
+                                .attr("class","search")
+                                .style("width",svgDims.width+"px")
+                                .style("height","20px");
+                            
+                            var sel = searchBar.append("select")
+                                .attr("class","stateViewSelect");
+                            
+                            for (var st of stateNamesList) {
+                                sel.append("option")
+                                    .attr("value",st)
+                                    .html(st);
+                            }
+                            
+                            sel.on("change", function() {
+                                stateContainer.select("svg").remove();
+                                var newState = sel.property("value");
+                                generateMap(stateContainer,data,colorFunc,tooltipFunc,newState,keys,svgDims);
+                            });
+                            
+                            // Start with a map of Alabama, but this is easily changeable.
+                            generateMap(stateContainer,data,colorFunc,tooltipFunc,"Alabama",keys,svgDims);
+                        }
+                        
+                        // A tooltip function to input into generateMap
+                        // Makes nice looking tooltip that has state, district, and all the results, with
+                        // Candidate names, party, votepct, and votes.
+                        //
+                        // Args ---
+                        // tooltip: the div to add elements to for the tooltip.
+                        // d: a datapoint (note, this is specific to your dataset).
+                        // loc: location of click, where to place tooltip.
+                        // svgDims: dims of the SVG attached to the tooltip.
+                        // i: index of the datapoint.
+                        //
+                        // Returns: tooltip. You would use this like: 
+                        //                      var tooltip = svg.append("div");
+                        //                      tooltip = showElectionResTooltip(tooltip,d,loc,svgDims,i);
+                        function showElectionResTooltip(tooltip,d,loc,svgDims,i) {
+                            var distHead = tooltip.append("h2").attr("class", "tooltip-district-header");
+                            
+                            tooltip.append("button")
+                                .html("X")
+                                .attr("class","tooltip-xout")
+                                .on("click", function() {tooltip.style("display", "none");});
+                            
+                            var tTable = tooltip.append("table").attr("class", "tooltip-results-table");
+                            
+                            // Place to the left if on the right side, vice-versa
+                            tooltip.style("position","relative");
+                            tooltip.style("top",-600+loc[1]+"px");
+                            
+                            if (loc[0] > svgDims["width"]/2) {
+                                tooltip.style("left", loc[0]-348+"px");
+                            } else {
+                                tooltip.style("left",loc[0]+8+"px");
+                            }
+                            
+                            // Heading, with state and district
+                            function getDistHead(d) {
+                                var currStr = d["state"];
+                                var currDMod10 = d["district"]%10;
+                                var ext = "th";
+                                if (currDMod10 === 1) {
+                                    ext = "st";
+                                } else if (currDMod10 === 2) {
+                                    ext = "nd";
+                                } else if (currDMod10 === 3) {
+                                    ext = "rd";
+                                }
+                                currStr = currStr + " " + d["district"] + ext + " District";
+                                return currStr;
+                            }
+                            distHead.html(getDistHead(d));
+                            tTable.html("");
+                            
+                            // Get the order of results to place in the tooltip
+                            var orderedResults = [];
+                            var partyOptions = ["D", "R", "I"];
+                            for (var j = 0; j < partyOptions.length; j++) {
+                                for (var i = 0; i < d["results"][partyOptions[j]].length; i++) {
+                                    orderedResults[d["results"][partyOptions[j]][i]["rank"]-1] = {info: d["results"][partyOptions[j]][i], party: partyOptions[j]};
+                                }
+                            }
+                            
+                            // Get data about each candidate to place in table
+                            for (var i = 0; i < orderedResults.length; i++) {
+                                var tr = tTable.append("tr");
+                                var nameCell = tr.append("td").attr("class","tooltip-name-cell");
+                                nameCell.append("span")
+                                    .attr("class", "icon")
+                                    .html(orderedResults[i]["party"])
+                                    .style("background-color", partyColors[orderedResults[i]["party"]]);
+                                nameCell.append("span")
+                                    .attr("class", "tooltip-name-span")
+                                    .html(orderedResults[i]["info"]["candidate"]);
+
+                                var pctCell = tr.append("td").attr("class","tooltip-pct-cell");
+                                if (orderedResults[i]["info"]["vote_pct"] !== "NaN") {
+                                    pctCell.html(orderedResults[i]["info"]["vote_pct"] + "%");
+                                }
+                                var voteCell = tr.append("td").attr("class","tooltip-vote-cell");
+                                if (orderedResults[i]["info"]["votes"] !== "NaN") {
+                                    voteCell.html(orderedResults[i]["info"]["votes"]);
+                                } else {
+                                    voteCell.html("Uncontested");
+                                }
+                            }
+                            return tooltip;
+                        }
+                        
+                        // A tooltip function to input into generateMap
+                        // Makes nice looking tooltip that has state, district, and compactness.
+                        //
+                        // Args ---
+                        // tooltip: the div to add elements to for the tooltip.
+                        // d: a datapoint (note, this is specific to your dataset).
+                        // loc: location of click, where to place tooltip.
+                        // svgDims: dims of the SVG attached to the tooltip.
+                        // i: index of the datapoint.
+                        //
+                        // Returns: tooltip. You would use this like: 
+                        //                      var tooltip = svg.append("div");
+                        //                      tooltip = showCompTooltip(tooltip,d,loc,svgDims,i); 
+                        function showCompTooltip(tooltip,d,loc,svgDims,i) {           
+                            var distHead = tooltip.append("h2").attr("class", "tooltip-district-header");
+                            
+                            tooltip.append("button")
+                                .html("X")
+                                .attr("class","tooltip-xout")
+                                .on("click", function() {tooltip.style("display", "none");});
+                            
+                            var tTable = tooltip.append("table").attr("class", "tooltip-results-table");
+                            tooltip.style("display", "none");
+                            
+                            // Place to the left if on the right side, and vice-versa
+                            tooltip.style("position","relative");
+                            tooltip.style("top",-svgDims.height+loc[1]+"px");
+                            
+                            if (loc[0] > svgDims["width"]/2) {
+                                tooltip.style("left", loc[0]-348+"px");
+                            } else {
+                                tooltip.style("left",loc[0]+8+"px");
+                            }
+                            
+                            // Get the header with state and district
+                            function getDistHead(d) {
+                                var currStr = d["state"];
+                                var currDMod10 = d["district"]%10;
+                                var ext = "th";
+                                if (currDMod10 === 1) {
+                                    ext = "st";
+                                } else if (currDMod10 === 2) {
+                                    ext = "nd";
+                                } else if (currDMod10 === 3) {
+                                    ext = "rd";
+                                }
+                                currStr = currStr + " " + d["district"] + ext + " District";
+                                return currStr;
+                            }
+                            distHead.html(getDistHead(res["cd114"][i]));
+                            tTable.html("");
+                            
+                            
+                            // Place compactness in the tooltip
+                            var comp = getCompactness(d);
+                            var r1 = tTable.append("tr");
+                            r1.append("td").html("Compactness")
+                            r1.append("td").html(Math.round(comp*Math.pow(10,5))/Math.pow(10,5));
+                            
+                            return tooltip;
+                        }
+                        
+                        // colorFunc for generateMap. Takes a datapoint from res["cd114"] and maps it to red or blue
+                        var binaryWinColors = function(d) {
+                                var fillCol = "none";
+                                for (var i = 0; i < d["results"]["D"].length; i++) {
+                                    if (d["results"]["D"][i]["is_winner"]) {
+                                        fillCol = partyColors["D"];
+                                        return fillCol;
+                                    }
+                                }
+                                for (var i = 0; i < d["results"]["R"].length; i++) {
+                                    if (d["results"]["R"][i]["is_winner"]) {
+                                        fillCol = partyColors["R"];
+                                        return fillCol;   
+                                    }
+                                }
+                                for (var i = 0; i < d["results"]["I"].length; i++) {
+                                    if (d["results"]["I"][i]["is_winner"]) {
+                                        fillCol = partyColors["I"];
+                                        return fillCol;  
+                                    }
+                                }
+                                return fillCol;
+                        }
+                        
+                        // colorFunc for generateMap. Takes a datapoint from res["cd114"] and maps it to a shade of red or blue
+                        var marginWinColors = function(d) {
+                            var fillCol = "white";
+                            var colors = partyColorScales;
+                            
+                            var margin = getMargin(d);
+                            
+                            if (margin < 0) {
+                                return colors["D"](-margin);
+                            }
+                            else {
+                                return colors["R"](margin);
+                            }
+                            return fillCol;
+                        }
+                        
+                        // colors for margin map
+                        var partyColorScales = {};
+                        partyColorScales["D"] = d3.scaleThreshold()
+                                                    .domain([0,5,10,15,20,25,30,40,50])
+                                                    .range(d3.schemeBlues[9]);
+                        partyColorScales["R"] = d3.scaleThreshold()
+                                                    .domain([0,5,10,15,20,25,30,40,50])
+                                                    .range(d3.schemeReds[9]);
+                        partyColorScales["I"] = d3.scaleThreshold()
+                                                    .domain([0,5,10,15,20,25,30,40,50])
+                                                    .range(d3.schemePurples[9]);
+                        
+                        // Takes a datapoint from res["cd114"] and gets its margin
+                        function getMargin(d) {
+                            if (d["results"]["D"].length + d["results"]["R"].length + d["results"]["I"].length <= 1) {
+                                // uncontested (D vs. R)
+                                for (var j = 0; j < d["results"]["D"].length; j++) {
+                                    if (d["results"]["D"][j]["is_winner"]) {
+                                        return -100;
+                                    }
+                                }
+                                for (var j = 0; j < d["results"]["R"].length; j++) {
+                                    if (d["results"]["R"][j]["is_winner"]) {
+                                        return 100;
+                                    }
+                                }
+                            }
+                            // Look for Democratic winner, then second place in other parties
+                            for (var i = 0; i < d["results"]["D"].length; i++) {
+                                if (d["results"]["D"][i]["is_winner"]) {
+                                    var rPct = 0;
+                                    for (var j = 0; j < d["results"]["R"].length; j++) {
+                                        if (d["results"]["R"][j]["rank"] === 2) {
+                                            rPct = d["results"]["R"][j]["vote_pct"];
+                                            break;
+                                        }
+                                    }
+                                    for (var j = 0; j < d["results"]["I"].length; j++) {
+                                        if (d["results"]["I"][j]["rank"] === 2) {
+                                            rPct = d["results"]["I"][j]["vote_pct"];
+                                            break;
+                                        }
+                                    }
+                                    var dPct = d["results"]["D"][i]["vote_pct"];
+                                    var margin = rPct-dPct;
+                                    return margin;
+                                }
+                            }
+                            // Look for Republican winner, then second place in other parties
+                            for (var i = 0; i < d["results"]["R"].length; i++) {
+                                if (d["results"]["R"][i]["is_winner"]) {
+                                    var dPct = 0;
+                                    for (var j = 0; j < d["results"]["D"].length; j++) {
+                                        if (d["results"]["D"][j]["rank"] === 2) {
+                                            dPct = d["results"]["D"][j]["vote_pct"];
+                                            break;
+                                        }
+                                    }
+                                    for (var j = 0; j < d["results"]["I"].length; j++) {
+                                        if (d["results"]["I"][j]["rank"] === 2) {
+                                            dPct = d["results"]["I"][j]["vote_pct"];
+                                            break;
+                                        }
+                                    }
+                                    var rPct = d["results"]["R"][i]["vote_pct"];
+                                    var margin = rPct-dPct;
+                                    return margin;
+                                }
+                            }
+                        }
+                        
+                        // Makes a histogram.
+                        //
+                        // Args ---
+                        // svg: the svg DOM element to make the histogram in
+                        // data: array of datapoints
+                        // xRange: range along the x-axis to divide into bins
+                        // numBins: number of bins to use
+                        // xLoc: location of top left corner x of figure within SVG
+                        // yLoc: location of top left corner y of figure within SVG
+                        // w: width of plot within SVG
+                        // h: height of plot within SVG
+                        // fillFunc: function that takes index of bin as input and outputs a color.
+                        // title: title for histogram. A string.
+                        // xLabel: x-axis title
+                        // yLabel: y-axis title
+                        // titleFontSize: font size of title.
+                        //
+                        // Returns: nothing
+                        function makeHist(svg, data, xRange, numBins, xLoc, yLoc, w, h, fillFunc, title, xLabel="",yLabel="",titleFontSize="10pt") {
+                            // xRange = [-100,100]
+                            var btBarMar = 0.15; //proportion of bar width
+                            var aroundMar = 0.1; //proportion of plot height (for axes and title)
+                            var binStep = (xRange[1]-xRange[0])/numBins;
+                            
+                            var bins = [];
+                            for (var i = 0; i < numBins; i++) {
+                                bins.push(0);
+                            }
+                            
+                            // Increment each corresponding bin when you find a datapt in that range
+                            for (var i = 0; i < data.length; i++) {
+                                var binIdx = Math.floor((data[i]-xRange[0])/binStep);
+                                if (binIdx >= numBins) {
+                                    binIdx = binIdx-1;
+                                }
+                                bins[binIdx] ++;
+                            }
+                            
+                            // Find the max bin size, to calculate the y-axis maximum.
+                            var maxBinSize = bins[0];
+                            var maxBinIdx = 0;
+                            for (var i = 1; i < bins.length; i++) {
+                                if (bins[i] > maxBinSize) {
+                                    maxBinSize = bins[i];
+                                    maxBinIdx = i;
+                                }
+                            }
+                            
+                            // Then, find its order of magnitude, i.e. 25 would return 1
+                            var oom = Math.floor(Math.log10(maxBinSize));
+                            
+                            // Calculate y-axis max as the next multiple of 10^oom.
+                            // i.e. if max bin size is 25, oom = 1 --> axis max is 30.
+                            var maxH = Math.ceil(maxBinSize/Math.pow(10,oom))*Math.pow(10,oom);
+                            //console.log("MAXH " + maxH);
+                            
+                            var x = d3.scaleLinear()
+                                        .domain([0,bins.length])
+                                        .range([xLoc+aroundMar*w,xLoc+w-aroundMar*w]);
+                            
+                            var y = d3.scaleLinear()
+                                        .domain([0,maxH])
+                                        .range([yLoc+h-aroundMar*h,yLoc+aroundMar*h]);
+                            
+                            var group = svg.append("g");
+                            
+                            // Add title
+                            group.append("text")
+                                .text(title)
+                                .attr("x", xLoc+w/2)
+                                .attr("y", yLoc+aroundMar*h*(0.7))
+                                .attr("text-anchor", "middle")
+                                .style("font-size", titleFontSize);
+                            
+                            // Add rects, and bind to bins.
+                            var rects = group.selectAll("rect")
+                                .data(bins);
+                            
+                            rects.enter()
+                                .append("rect")
+                                .attr("x", function(d,i) {return x(i)+btBarMar*w*(1-2*aroundMar)/numBins/2;})
+                                .attr("y", function(d) {return y(d);})
+                                .attr("width", w/numBins * (1-2*btBarMar))
+                                .attr("height", function(d) {return yLoc+(h*(1-aroundMar))-y(d);})
+                                .style("fill", function(d,i) {return fillFunc(i);});
+                            
+                            // Make axes
+                            var realX = d3.scaleLinear()
+                                            .domain([xRange[0],xRange[1]])
+                                            .range([xLoc+aroundMar*w,xLoc+w-aroundMar*w]);
+                            svg.append("g")
+                                .attr("transform", `translate(0,${h*(1-aroundMar)+yLoc})`)
+                                .call(d3.axisBottom(realX).ticks(numBins/3));
+
+                            svg.append("g")
+                                .attr("transform", `translate(${w*aroundMar+xLoc},0)`)
+                                .call(d3.axisLeft(y).ticks(Math.min(maxBinSize,4)));
+                                
+
+                            // Title axes
+                            svg.append("text")
+                                .attr("text-anchor", "middle")
+                                .attr("transform", "translate("+ (xLoc+aroundMar*w) +","+(yLoc+aroundMar*h+(h-2*aroundMar*h)/2)+")rotate(-90)")
+                                .text(yLabel);
+
+                            svg.append("text")
+                                .attr("text-anchor", "middle")
+                                .attr("transform", "translate("+ (xLoc+aroundMar*w + (w-w*aroundMar*2)/2 ) +","+(h - 1/2*h*aroundMar+yLoc)+")")
+                                .text(xLabel);
+                        }
+                        
+                        // Uses makeHist to make a histogram of district election results margins
+                        // 
+                        // Args ---
+                        // svg: the svg DOM element to make the histogram in
+                        // margins: the data
+                        // numBins: number of bins to use
+                        // xLoc: location of top left corner x of figure within SVG
+                        // yLoc: location of top left corner y of figure within SVG
+                        // w: width of plot within SVG
+                        // h: height of plot within SVG
+                        // state: string of statename, just for titling the plot
+                        //
+                        // Returns: nothing
+                        function makeMarginHist(svg, margins, numBins, xLoc, yLoc, w, h, state) {
+                            makeHist(svg, margins, [-100, 100], numBins, xLoc, yLoc, w, h, function(i) {
+                                if (i < numBins/2) {
+                                    return partyColors["D"];
+                                } else {
+                                    return partyColors["R"];
+                                }
+                            }, state);
+                        }
+                        
+                        // Uses makeMarginHist to make a composite plot of margin histograms
+                        //
+                        // Args ---
+                        // parentElt: div to append SVG to
+                        // numBins: number of bins to use (default 8)
+                        // svgDims: dims of SVG
+                        //
+                        // Returns: nothing
+                        function makeCompositeMarginHist(parentElt, numBins=8, svgDims=defaultSvgDims) {
+                            var svg = parentElt.append("svg")
+                                .attr("width", svgDims.width)
+                                .attr("height", svgDims.height)
+                                .style("margin", "0 auto")
+                                .style("display", "block")
+                                .style("overflow", "visible");
+                                
+                            var currState = res["cd114"][0]["state"];
+                            var stateData = [getMargin(res["cd114"][0])];
+                            var stateCount = 1;
+                            
+                            var numRows = 5;
+                            var numCols = 10;
+                                
+                            var pltMargin = svgDims.width/numRows * 0.1;
+                                
+                            var xLoc = pltMargin;
+                            var yLoc = pltMargin;
+                            
+                            var pltXSpace = svgDims.width/numCols;
+                            var pltYSpace = svgDims.height/numRows;
+                            
+                            var pltW = pltXSpace - 2*pltMargin;
+                            var pltH = pltYSpace - 2*pltMargin;
+                            
+                            for (var i = 1; i < res["cd114"].length; i++) {
+                                if (res["cd114"][i]["state"] !== currState) {
+                                    makeMarginHist(svg,stateData,numBins,xLoc,yLoc,pltW,pltH,currState);
+                                    currState = res["cd114"][i]["state"];
+                                    stateData = [];
+                                    if ((stateCount)%numCols == 0) {
+                                        xLoc = pltMargin;
+                                        yLoc += pltYSpace;
+                                    } else {
+                                        xLoc += pltXSpace;
+                                    }
+                                    stateCount++;
+                                }
+                                stateData.push(getMargin(res["cd114"][i]));
+                            }
+                            makeMarginHist(svg,stateData,numBins,xLoc,yLoc,pltW,pltH,currState);
+                        }
+                        
+                        // Uses makeMarginHist to make one single histogram using national data
+                        //
+                        // Args ---
+                        // parentElt: div to append SVG to
+                        // numBins: number of bins to use (default 20)
+                        // svgDims: dims of SVG
+                        //
+                        // Returns: nothing
+                        function makeNationalHist(parentElt, numBins=20, svgDims=defaultSvgDims) {
+                            var marginData = [];
+                            for (var i = 0; i < res["cd114"].length; i++) {
+                                marginData.push(getMargin(res["cd114"][i]));
+                            }
+                            var svg = parentElt.append("svg")
+                                .attr("width", svgDims.width)
+                                .attr("height", svgDims.height)
+                                .style("margin", "0 auto")
+                                .style("display", "block")
+                                .style("overflow", "visible");
+                            makeMarginHist(svg,marginData,numBins,0,0,svgDims.width,svgDims.height,"Margins of Victory Nationally Across Districts");
+                        }
+                        
+                        // Adds a key to the SVG
+                        //
+                        // Args ---
+                        // svg: the SVG to place the key in
+                        // color: color scale for the key
+                        // title: caption for the key
+                        // idx: index. Allows multiple keys. The larger the index, the further down the plot.
+                        function makeKey(svg,color,title="",idx=0) {
+                            // Some of this is modified from a D3 example, called "Choropleth"
+                            // https://bl.ocks.org/mbostock/4060606
+                            var g = svg.append("g")
+                                .attr("class", "key")
+                                .attr("transform", "translate(0," + (idx+1)*40 + ")");
+                            
+                            var keyScale = d3.scaleLinear()
+                            .domain([color.domain()[0],color.domain()[color.domain().length-1]])
+                            .rangeRound([600, 800]);
+                            
+                            g.selectAll("rect")
+                              .data(color.range().map(function(d) {
+                                  d = color.invertExtent(d);
+                                  if (d[0] == null) d[0] = keyScale.domain()[0];
+                                  if (d[1] == null) d[1] = keyScale.domain()[1];
+                                  return d;
+                                }))
+                              .enter().append("rect")
+                                .attr("height", 8)
+                                .attr("x", function(d) { return keyScale(d[0]); })
+                                .attr("width", function(d) { return keyScale(d[1]) - keyScale(d[0]); })
+                                .attr("fill", function(d) { return color(d[0]); });
+
+                            g.append("text")
+                                .attr("class", "caption")
+                                .attr("x", keyScale.range()[0])
+                                .attr("y", -6)
+                                .attr("fill", "#000")
+                                .attr("text-anchor", "start")
+                                .attr("font-weight", "bold")
+                                .text(title);
+
+                            g.call(d3.axisBottom(keyScale)
+                                .tickSize(13)
+                                .tickFormat(function(keyScale, i) { return i ? keyScale : keyScale; })
+                                .tickValues(color.domain()));
+
+                        }
+                        
+                        // Plots compactness vs margins for all districts
+                        // Args ---
+                        // parentElt: div to append SVG to
+                        // svgDims: dims of SVG
+                        function plotCompactnessVsMargin(parentElt,svgDims=defaultSvgDims) {
+                            var svg = parentElt.append("svg")
+                                .attr("width", svgDims.width)
+                                .attr("height", svgDims.height)
+                                .style("margin", "0 auto")
+                                .style("display", "block")
+                                .style("overflow", "visible");
+                            
+                            var aroundMar = 0.1;
+                            
+                            var circles = svg.append("g").selectAll("circle");
+                            
+                            var x = d3.scaleLinear()
+                                        .domain([0,0.36])
+                                        .range([svgDims.width*aroundMar,svgDims.width*(1-aroundMar)]);
+                            
+                            var y = d3.scaleLinear()
+                                        .domain([-100,100])
+                                        .range([svgDims.height*(1-aroundMar),svgDims.height*aroundMar]);
+                            
+                            
+                            circles.data(res["cd114"])
+                                .enter()
+                                .append("circle")
+                                .attr("cx", function(d,i) {
+                                    var comp = compactnessList[i];
+                                    return x(comp);
+                                })
+                                .attr("cy", function(d,i) {
+                                    return y(getMargin(d));
+                                })
+                                .attr("r",6)
+                                .attr("fill", function(d) {
+                                    return getMargin(d) < 0 ? partyColors["D"] : partyColors["R"];
+                                })
+                                .attr("opacity", "0.6")
+                                .on("mouseover", function(d, i) {
+                                    d3.select(this)
+                                        .transition()
+                                        .duration(500)
+                                        .attr("r", 12);
+                                    var xLoc = +d3.select(this).attr("cx");
+                                    var anchorPos = "start";
+                                    if (xLoc > svgDims.width/2) {
+                                        anchorPos = "end";
+                                        xLoc -= 20;
+                                    } else {
+                                        xLoc += 20;
+                                    }
+                                    svg.append("text")
+                                        .attr("x", xLoc)
+                                        .attr("y", +d3.select(this).attr("cy")-15)
+                                        .classed("popup", true)
+                                        .attr("text-anchor", anchorPos)
+                                        .attr("fill", "black")
+                                        .text(d["state"] + " District " + d["district"])
+                                        .attr("opacity", 0.0)
+                                        .transition("remove_popup")
+                                        .duration(500)
+                                        .attr("opacity", 1.0)
+                                })
+                                .on("mouseout", function(d, i) {
+                                    svg.selectAll(".popup")
+                                        .transition("remove_popup")
+                                        .duration(500)
+                                        .attr("opacity", 0.0)
+                                        .remove()
+                                    d3.select(this)
+                                        .transition()
+                                        .duration(500)
+                                        .attr("r", 6);
+                                });
+                            
+                            // Make axes
+                            svg.append("g")
+                                .attr("transform", `translate(0,${svgDims.height*(1-aroundMar)})`)
+                                .call(d3.axisBottom(x));
+
+                            svg.append("g")
+                                .attr("transform", `translate(${svgDims.width*aroundMar},0)`)
+                                .call(d3.axisLeft(y));
+
+                            // Title axes
+                            svg.append("text")
+                                .attr("text-anchor", "middle")
+                                .attr("transform", "translate("+ (svgDims.width*aroundMar/2) +","+(svgDims.height/2)+")rotate(-90)")
+                                .text("Margin of victory");
+
+                            svg.append("text")
+                                .attr("text-anchor", "middle")
+                                .attr("transform", "translate("+ (svgDims.width/2) +","+(svgDims.height - 1/2*svgDims.height*aroundMar)+")")
+                                .text("Compactness");
+                        }
+                        
+                        makeNatStateMap(d3.select("#binary-win-map-container"),res["cd114"],binaryWinColors,showElectionResTooltip);
+                        
+                        var marginMapKeys = [{colors: partyColorScales["D"], title: "Dem-won districts: margin of victory"},
+                                            {colors: partyColorScales["R"], title: "Rep-won districts: margin of victory"}];
+                        
+                        makeNatStateMap(d3.select("#margin-win-map-container"),res["cd114"],marginWinColors,showElectionResTooltip,marginMapKeys);
+                        
+                        var compMapKeys = [{colors: compColorScale, title: "Compactness"}];
+                        
+                        makeNatStateMap(d3.select("#compactness-map-container"),distFts,compactnessColors,showCompTooltip,compMapKeys);
+                        
+                        makeCompositeMarginHist(d3.select("#composite-hist-container"));
+                        makeNationalHist(d3.select("#national-hist-container"));
+                        
+                        var compHistSVG = d3.select("#comp-hist-container").append("svg")
+                            .attr("width", defaultSvgDims.width)
+                            .attr("height", defaultSvgDims.height)
+                            .style("margin", "0 auto")
+                            .style("display", "block")
+                            .style("overflow", "visible");
+                        
+                        makeHist(compHistSVG,compactnessList,[0,1],50,0,0,900,600,function(i){return "#bbbbbb";},"COMPACTNESS HISTOGRAM");
+                        
+                        plotCompactnessVsMargin(d3.select("#comp-vs-margin-container"));
+                    }); 
+                });
+            }); 
+        </script>
+    </body>
+</html>
